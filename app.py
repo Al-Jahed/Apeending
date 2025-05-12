@@ -1,58 +1,78 @@
 import streamlit as st
 import re
 import pandas as pd
-from io import StringIO
 import docx
-import PyPDF2
+import pdfplumber
 
-st.title("Multi-format Text Processor with *** Insertion")
-
-uploaded_file = st.file_uploader("Upload a file", type=["txt", "docx", "pdf", "csv", "xlsx"])
-
-def extract_text(file):
-    file_type = file.name.split(".")[-1].lower()
-
-    if file_type == "txt":
-        return file.read().decode("utf-8")
-
-    elif file_type == "docx":
-        doc = docx.Document(file)
-        return "\n".join([para.text for para in doc.paragraphs])
-
-    elif file_type == "pdf":
-        pdf = PyPDF2.PdfReader(file)
-        return "\n".join([page.extract_text() for page in pdf.pages if page.extract_text()])
-
-    elif file_type == "csv":
-        df = pd.read_csv(file)
-        return df.to_string(index=False)
-
-    elif file_type == "xlsx":
-        df = pd.read_excel(file)
-        return df.to_string(index=False)
-
-    else:
-        return "Unsupported file type."
-
-
+# ------------------------------
+# Formatting Function
+# ------------------------------
 def format_text(text):
-    # 1. Add *** before every number followed by a dot, e.g., 5.
+    # Add *** before numbers like 5.
     text = re.sub(r'(?<!\*)\b(\d+\.)', r'***\1', text)
 
-    # 2. Add *** after any full stop (or newline + full stop) followed by ***number
-    text = re.sub(r'(?<=[\.\n])(?=\*{3}\d+\.)', r'*** ', text)
+    # Add *** after the sentence-ending full stop before a new number (including newline cases)
+    text = re.sub(r'(\.\s*)(?=\d+\.)', r'\1*** ', text)
 
-    # 3. Add *** after the final sentence-ending full stop at end of text (optional spaces after it)
-    text = re.sub(r'(\.)(\s*)$', r'\1***', text)
+    # Add *** after final period if it's at the end of the whole string
+    text = re.sub(r'(\.)(\s*)$', r'\1\n***', text)
+
+    # Ensure *** appears at the end after a question block even if there's no newline
+    text = re.sub(r'(?<=death\.)\s*(?=\d)', r' ***\n', text)
 
     return text
 
+# ------------------------------
+# File Reading Functions
+# ------------------------------
+def read_txt(file):
+    return file.read().decode('utf-8')
 
-if uploaded_file is not None:
-    raw_text = extract_text(uploaded_file)
-    formatted_text = format_text(raw_text)
+def read_docx(file):
+    doc = docx.Document(file)
+    return '\n'.join([para.text for para in doc.paragraphs])
 
-    st.subheader("Formatted Output")
-    st.text_area("Processed Text", formatted_text, height=400)
+def read_pdf(file):
+    text = ''
+    with pdfplumber.open(file) as pdf:
+        for page in pdf.pages:
+            text += page.extract_text() + '\n'
+    return text
 
-    st.download_button("Download Formatted Text", formatted_text, file_name="formatted.txt")
+def read_csv(file):
+    df = pd.read_csv(file)
+    return '\n'.join(df.astype(str).apply(' '.join, axis=1))
+
+def read_xlsx(file):
+    df = pd.read_excel(file)
+    return '\n'.join(df.astype(str).apply(' '.join, axis=1))
+
+# ------------------------------
+# Streamlit App
+# ------------------------------
+st.title("Question Formatter with *** Marker")
+
+uploaded_file = st.file_uploader("Upload your file", type=["txt", "docx", "pdf", "csv", "xlsx"])
+
+if uploaded_file:
+    try:
+        if uploaded_file.type == "text/plain":
+            raw_text = read_txt(uploaded_file)
+        elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+            raw_text = read_docx(uploaded_file)
+        elif uploaded_file.type == "application/pdf":
+            raw_text = read_pdf(uploaded_file)
+        elif uploaded_file.type == "text/csv":
+            raw_text = read_csv(uploaded_file)
+        elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+            raw_text = read_xlsx(uploaded_file)
+        else:
+            st.error("Unsupported file format")
+            raw_text = ""
+        
+        if raw_text:
+            formatted = format_text(raw_text)
+            st.subheader("Formatted Output:")
+            st.text_area("Result", formatted, height=400)
+    except Exception as e:
+        st.error(f"Error reading or formatting file: {e}")
