@@ -8,18 +8,12 @@ import pdfplumber
 # Formatting Function
 # ------------------------------
 def format_text(text):
-    # Add *** before numbers like 5.
-    text = re.sub(r'(?<!\*)\b(\d+\.)', r'***\1', text)
-
-    # Add *** after the sentence-ending full stop before a new number (including newline cases)
-    text = re.sub(r'(\.\s*)(?=\d+\.)', r'\1*** ', text)
-
-    # Add *** after final period if it's at the end of the whole string
-    text = re.sub(r'(\.)(\s*)$', r'\1\n***', text)
-
-    # Ensure *** appears at the end after a question block even if there's no newline
-    text = re.sub(r'(?<=death\.)\s*(?=\d)', r' ***\n', text)
-
+    # Step 1: Add a newline after each sentence-ending full stop (e.g., death.)
+    text = re.sub(r'(\.\s*)', r'\1\n', text)
+    
+    # Step 2: Insert *** after a sentence-ending full stop and before a number with a full stop (e.g., 6.)
+    text = re.sub(r'(\.\s*)\n(\d+\.)', r'\1\n***\n\n*** \2', text)
+    
     return text
 
 # ------------------------------
