@@ -34,12 +34,17 @@ def extract_text(file):
     else:
         return "Unsupported file type."
 
-def format_text(text):
-    # Add *** before numbers like 6. at line start
-    text = re.sub(r'^(\d+\.)', r'***\1', text, flags=re.MULTILINE)
 
-    # Add *** after paragraph-ending full stops
-    text = re.sub(r'(\.)(\s*\n)', r'\1***\2', text)
+
+def format_text(text):
+    # 1. Add *** before every number followed by a dot (e.g., 5., 12., 100.)
+    text = re.sub(r'(?<!\*)\b(\d+\.)', r'***\1', text)
+
+    # 2. Add *** after any full stop that is:
+    #    - directly followed by whitespace and a number-dot (e.g., ". 6.")
+    #    - or is at the very end of the text
+    text = re.sub(r'(\.)(?=\s+\d+\.)', r'\1***', text)  # full stop before number-dot
+    text = re.sub(r'(\.)(\s*)$', r'\1***', text)        # final full stop at end of text
 
     return text
 
