@@ -35,20 +35,14 @@ def extract_text(file):
         return "Unsupported file type."
 
 
-
-
-
-
-
 def format_text(text):
     # 1. Add *** before every number followed by a dot, e.g., 5.
     text = re.sub(r'(?<!\*)\b(\d+\.)', r'***\1', text)
 
-    # 2. Add *** after any full stop that is immediately followed (with or without space) by ***number.
-    # This ensures we catch patterns like "death.***6." and make it "death.*** ***6."
-    text = re.sub(r'(?<=\.)(?=\*{3}\d+\.)', r'*** ', text)
+    # 2. Add *** after any full stop (or newline + full stop) followed by ***number
+    text = re.sub(r'(?<=[\.\n])(?=\*{3}\d+\.)', r'*** ', text)
 
-    # 3. Also add *** after any final sentence-ending full stop (at end of string)
+    # 3. Add *** after the final sentence-ending full stop at end of text (optional spaces after it)
     text = re.sub(r'(\.)(\s*)$', r'\1***', text)
 
     return text
