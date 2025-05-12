@@ -1,75 +1,77 @@
 import streamlit as st
 import re
-from io import StringIO
+import docx2txt
 import pandas as pd
-from docx import Document
-import PyPDF2
+import io
+from PyPDF2 import PdfReader
 
+st.set_page_config(page_title="Numbered Passage Counter", layout="centered")
+st.title("📘 Numbered Passage Counter")
 
-# Function to extract text from DOCX
-def extract_text_from_docx(docx_file):
-    doc = Document(docx_file)
+st.markdown("""
+Upload a `.txt`, `.docx`, `.pdf`, `.xls/.xlsx`, or `.csv` file below.  
+This app will extract the text and count how many **numbered passages** are present (like `1.`, `2,`, etc.).
+""")
+
+# Supported file upload
+uploaded_file = st.file_uploader("Upload your file", type=["txt", "docx", "pdf", "csv", "xls", "xlsx"])
+
+def extract_text(file, filetype):
     text = ""
-    for para in doc.paragraphs:
-        text += para.text + "\n"
+    if filetype == "txt":
+        text = file.read().decode("utf-8", errors="ignore")
+
+    elif filetype == "docx":
+        text = docx2txt.process(file)
+
+    elif filetype == "pdf":
+        reader = PdfReader(file)
+        text = "\n".join(page.extract_text() or "" for page in reader.pages)
+
+    elif filetype in ["csv", "xls", "xlsx"]:
+        try:
+            if filetype == "csv":
+                df = pd.read_csv(file)
+            else:
+                df = pd.read_excel(file)
+            text = "\n".join(df.astype(str).apply(lambda row: " ".join(row), axis=1))
+        except Exception as e:
+            st.error(f"Error reading {filetype} file: {e}")
+    
     return text
 
-# Function to extract text from PDF
-def extract_text_from_pdf(pdf_file):
-    pdf_reader = PyPDF2.PdfReader(pdf_file)
-    text = ""
-    for page in pdf_reader.pages:
-        text += page.extract_text() + "\n"
-    return text
+# Function to extract numbered passages and their first lines
+def extract_numbered_passages_with_lines(text):
+    pattern = r"(?m)^\s*(\d+[.,])\s*(.*?)(?:\n|$)"  # Capture the number and the first line after it
+    matches = re.findall(pattern, text)
+    return matches
 
-# Function to extract text from CSV
-def extract_text_from_csv(csv_file):
-    df = pd.read_csv(csv_file)
-    text = df.to_string(index=False)
-    return text
+# Function to count numbered passages
+def count_numbered_passages(text):
+    pattern = r"(?m)^\s*\d+[.,]"  # Start of line, digits, then . or ,
+    return len(re.findall(pattern, text))
 
-# Function to extract text from Excel files (XLS/XLSX)
-def extract_text_from_excel(excel_file):
-    df = pd.read_excel(excel_file)
-    text = df.to_string(index=False)
-    return text
+if uploaded_file:
+    filetype = uploaded_file.name.split(".")[-1].lower()
+    with st.spinner("Extracting text..."):
+        text = extract_text(uploaded_file, filetype)
 
-# Function to handle text file
-def extract_text_from_txt(txt_file):
-    text = txt_file.read().decode("utf-8")
-    return text
+    if text:
+        # Count the numbered passages
+        count = count_numbered_passages(text)
+        st.success(f"✅ Found **{count}** numbered passage(s) in the file!")
 
-# Function to identify the number of questions
-def identify_questions(text):
-    question_pattern = r'\d+\.'
-    questions = re.findall(question_pattern, text)
-    return len(questions)
+        # Display Extracted Text
+        with st.expander("📄 View Extracted Text"):
+            st.text_area("Text Preview", text, height=300)
 
-# Streamlit app
-def main():
-    st.title("Question Identifier")
-
-    # File uploader
-    uploaded_file = st.file_uploader("Upload a file", type=["docx", "txt", "csv", "xls", "xlsx", "pdf"])
-
-    if uploaded_file is not None:
-        file_extension = uploaded_file.name.split('.')[-1].lower()
-
-        if file_extension == 'docx':
-            text = extract_text_from_docx(uploaded_file)
-        elif file_extension == 'pdf':
-            text = extract_text_from_pdf(uploaded_file)
-        elif file_extension == 'csv':
-            text = extract_text_from_csv(uploaded_file)
-        elif file_extension in ['xls', 'xlsx']:
-            text = extract_text_from_excel(uploaded_file)
-        elif file_extension == 'txt':
-            text = extract_text_from_txt(uploaded_file)
-
-        # Count questions in the extracted text
-        num_questions = identify_questions(text)
-        
-        st.write(f"There are {num_questions} questions in the provided file.")
-
-if __name__ == "__main__":
-    main()
+        # Section to list the numbered passages with their first line
+        numbered_passages = extract_numbered_passages_with_lines(text)
+        if numbered_passages:
+            st.markdown("### 🔢 First Lines of Numbered Passages:")
+            for num, line in numbered_passages:
+                st.write(f"{num} {line.strip()}")
+    else:
+        st.warning("No text found or unsupported format.")
+else:
+    st.info("Please upload a file to get started.")
