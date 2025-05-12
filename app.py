@@ -36,15 +36,20 @@ def extract_text(file):
 
 
 
+
+
 def format_text(text):
-    # 1. Add *** before every number followed by a dot (e.g., 5., 12., 100.)
+    # 1. Add *** before every number followed by a dot (e.g., 5., 12.)
     text = re.sub(r'(?<!\*)\b(\d+\.)', r'***\1', text)
 
-    # 2. Add *** after any full stop that is:
-    #    - directly followed by whitespace and a number-dot (e.g., ". 6.")
-    #    - or is at the very end of the text
-    text = re.sub(r'(\.)(?=\s+\d+\.)', r'\1***', text)  # full stop before number-dot
-    text = re.sub(r'(\.)(\s*)$', r'\1***', text)        # final full stop at end of text
+    # 2. Add *** after any full stop that is followed by optional space(s) and a number-dot
+    text = re.sub(r'(\.)(?=\s*\d+\.)', r'\1***', text)
+
+    # 3. Add *** after the final sentence-ending full stop at the end of the text
+    text = re.sub(r'(\.)(\s*)$', r'\1***', text)
+
+    return text
+
 
     return text
 
